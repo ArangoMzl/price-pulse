@@ -1,0 +1,117 @@
+# ==========================================
+# ⚡ Price Pulse .gitignore
+# ==========================================
+
+# Secrets (NEVER commit these)
+.env
+.streamlit/secrets.toml
+
+# API Keys
+*api_key*
+*API_KEY*
+
+# ==========================================
+# 🐍 Python
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ==========================================
+# 🧪 Testing & Coverage
+# ==========================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ==========================================
+# 🌍 Virtual Environments
+# ==========================================
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# ==========================================
+# 💾 Cache & Runtime data
+# ==========================================
+.cache/
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# ==========================================
+# 🎨 IDEs & Editors
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# 📊 Streamlit
+# ==========================================
+.streamlit/secrets.toml
+
+# ==========================================
+# 🔧 OS files
+# ==========================================
+desktop.ini
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+$RECYCLE.BIN/
+
+# ==========================================
+# 📦 Distribution / packaging
+# ==========================================
+*.manifest
+*.spec
+
+# ==========================================
+# 🗄️ Databases
+# ==========================================
+*.db
+*.sqlite
+*.sqlite3
+
+# ==========================================
+# 🔐 Misc
+# ==========================================
+*.bak
+*.tmp
+*.swp
+*.swo
