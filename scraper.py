@@ -144,7 +144,10 @@ class AmazonScraper:
         # 2) Rate limiting
         self._wait()
 
-        # 3) Hacer request a Amazon
+        # 3) Crear sesión fresca para cada búsqueda (evita conflictos entre dominios)
+        session = requests.Session()
+
+        # 4) Hacer request a Amazon
         url = f"https://{domain}/s"
         params = {
             "k": query.strip(),
@@ -153,7 +156,7 @@ class AmazonScraper:
         }
 
         try:
-            response = self.session.get(
+            response = session.get(
                 url,
                 params=params,
                 headers=self._headers(domain),
@@ -167,34 +170,26 @@ class AmazonScraper:
             raise ConnectionError(f"Error HTTP {response.status_code} en {domain}: {e}")
         except requests.exceptions.RequestException as e:
             raise ConnectionError(f"Error de red al conectar con {domain}: {e}")
+        finally:
+            session.close()
 
-        # 4) Detectar CAPTCHA
+        # 5) Detectar CAPTCHA
         html_lower = response.text.lower()
         if any(s in html_lower for s in [
             "enter the characters you see below",
             "sorry, we just need to make sure you're not a robot",
             "/errors/validatecaptcha",
+            "automated access requests",
         ]):
             raise CaptchaError(
                 f"⚠️ Amazon pidió CAPTCHA para {domain}.\n\n"
                 "💡 Soluciones:\n"
                 "1. Espera 10-15 minutos y vuelve a intentar\n"
                 "2. Usa una VPN\n"
-                "3. Configura ScraperAPI en .env (gratis 1000/mes)\n"
-                "4. Usa Rainforest API (más confiable, de pago)"
+                "3. Configura ScraperAPI en .env (gratis 1000/mes)"
             )
 
-        # 5) Sin resultados
-        if any(s in html_lower for s in [
-            "no results for your search query",
-            "did not match any products",
-            "0 件の結果",  # "0 results" en japonés
-        ]):
-            # Guardar caché vacío para no repetir
-            self._save_cache(query, domain, [])
-            return []
-
-        # 6) Parsear HTML
+        # 6) Parsear HTML (siempre intentar parsear)
         products = self._parse(response.text, domain)
 
         # 7) Guardar en caché
