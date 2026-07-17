@@ -3,6 +3,8 @@ Price Comparator - Amazon USA y Japon
 """
 import os
 import io
+import time
+import random
 import requests
 import streamlit as st
 
@@ -85,13 +87,19 @@ def safe_image(url: str, width: int = 130):
         return
     try:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.amazon.com/",
         }
-        resp = requests.get(url, headers=headers, timeout=10)
+        resp = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
         resp.raise_for_status()
-        img_bytes = io.BytesIO(resp.content)
-        st.image(img_bytes, width=width, use_container_width=False)
+        content_type = resp.headers.get("Content-Type", "")
+        if "image" in content_type and len(resp.content) > 100:
+            img_bytes = io.BytesIO(resp.content)
+            st.image(img_bytes, width=width, use_container_width=False)
+        else:
+            st.markdown("📦")
     except Exception:
         st.markdown("📦")
 
@@ -307,6 +315,11 @@ if search_usa:
         errors["🇺🇸 Amazon USA"] = str(e)
     except Exception as e:
         errors["🇺🇸 Amazon USA"] = f"Error: {e}"
+
+# Delay entre búsquedas para evitar bloqueo
+if search_usa and search_japan:
+    wait = random.uniform(6, 10)
+    time.sleep(wait)
 
 if search_japan:
     try:
