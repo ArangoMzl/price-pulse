@@ -230,7 +230,10 @@ class AmazonScraper:
                     price_el = item.select_one(".a-price span")
                 if price_el:
                     price_text = price_el.get_text(strip=True)
-                    item_currency = self._detect_currency_from_text(price_text, detected_currency)
+                    if domain == "amazon.co.jp":
+                        item_currency = "USD"
+                    else:
+                        item_currency = self._detect_currency_from_text(price_text, detected_currency)
                     price = self._parse_price(price_text, item_currency)
 
                 rating = None
@@ -291,24 +294,10 @@ class AmazonScraper:
         return products
 
     def _detect_page_currency(self, soup, default: str) -> str:
-        """Detecta la moneda real que Amazon muestra en la página."""
-        # Para amazon.co.jp: detectar si muestra USD o JPY basándose en los precios
+        """Detecta la moneda que Amazon muestra en la página."""
+        # amazon.co.jp desde Colombia siempre muestra USD
         if default == "JPY":
-            # Revisar los primeros 5 precios de productos
-            price_els = soup.select('[data-component-type="s-search-result"] .a-price .a-offscreen')[:5]
-            usd_count = 0
-            jpy_count = 0
-            for el in price_els:
-                text = el.get_text(strip=True)
-                if "$" in text:
-                    usd_count += 1
-                elif "¥" in text or "￥" in text:
-                    jpy_count += 1
-            # Si la mayoría tiene $, es USD
-            if usd_count > jpy_count:
-                return "USD"
-            # Si la mayoría tiene ¥ o no hay símbolos claros, usar JPY
-            return "JPY"
+            return "USD"
 
         # Detección general para amazon.com y otros
         symbols = soup.select(".a-price-symbol")[:5]
