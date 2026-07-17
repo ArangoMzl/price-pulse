@@ -1,19 +1,23 @@
 """
-🛒 Amazon Price Comparator
-App Streamlit para buscar y comparar productos en Amazon USA 🇺🇸 y Japón 🇯🇵.
+🛒 Price Comparator
+App Streamlit para buscar y comparar productos en Amazon USA 🇺🇸, Amazon Japón 🇯🇵 y AliExpress 🌍.
 Métodos soportados:
 - 🆓 Scraping directo (gratis, con caché local) - por defecto
 - 🆓 ScraperAPI (1000 requests/mes gratis)
 - 💰 Rainforest API (plan pago, más confiable)
-
-Ejecutar con: streamlit run app.py
 """
 import os
-from typing import Optional
 import streamlit as st
 
 from amazon_api import AmazonSearch, Product, convert_currency
-from scraper import AmazonScraper, ScraperAPIWrapper, CaptchaError, cache_stats, clear_cache
+from scraper import (
+    AmazonScraper,
+    ScraperAPIWrapper,
+    AliExpressScraper,
+    CaptchaError,
+    cache_stats,
+    clear_cache,
+)
 
 
 # ============================================================================
@@ -66,13 +70,8 @@ st.markdown("""
 # ============================================================================
 # FUNCIONES AUXILIARES
 # ============================================================================
-def render_product_card(
-    product: Product,
-    show_converted: bool = False,
-    target_currency: Optional[str] = "USD",
-    show_original: bool = True,
-):
-    """Renderiza una tarjeta de producto."""
+def render_product_card(product: Product):
+    """Renderiza una tarjeta de producto con precio original + conversión a COP."""
     cols = st.columns([1, 4, 1.2])
 
     with cols[0]:
@@ -112,22 +111,10 @@ def render_product_card(
                 f"<p class='price-tag'>{product.currency} {product.price:,.2f}</p>",
                 unsafe_allow_html=True,
             )
-            # Conversión a la moneda destino
-            if show_converted and target_currency and product.currency != target_currency:
-                converted = convert_currency(product.price, product.currency, target_currency)
+            if product.currency != "COP":
+                converted = convert_currency(product.price, product.currency, "COP")
                 if converted:
-                    flag = "🇨🇴" if target_currency == "COP" else "💵" if target_currency == "USD" else ""
-                    st.caption(f"{flag} ≈ {target_currency} {converted:,.0f}" if target_currency == "COP" else f"{flag} ≈ {target_currency} {converted:,.2f}")
-            elif not show_original and show_converted and target_currency and product.currency != target_currency:
-                # Si NO quiere ver el original, mostrar solo el convertido
-                converted = convert_currency(product.price, product.currency, target_currency)
-                if converted:
-                    flag = "🇨🇴" if target_currency == "COP" else "💵" if target_currency == "USD" else ""
-                    st.markdown(
-                        f"<p class='price-tag'>{flag} {target_currency} {converted:,.0f}</p>" if target_currency == "COP"
-                        else f"<p class='price-tag'>{flag} {target_currency} {converted:,.2f}</p>",
-                        unsafe_allow_html=True,
-                    )
+                    st.caption(f"🇨🇴 ≈ COP {converted:,.0f}")
         else:
             st.caption("Precio no disponible")
 
@@ -184,8 +171,8 @@ def get_client(method: str):
 # ============================================================================
 # INTERFAZ PRINCIPAL
 # ============================================================================
-st.title("🛒 Comparador de Precios Amazon")
-st.markdown("Busca productos en **Amazon USA** 🇺🇸 y **Amazon Japón** 🇯🇵 y compara opciones.")
+st.title("🛒 Comparador de Precios")
+st.markdown("Busca productos en **Amazon USA** 🇺🇸, **Amazon Japón** 🇯🇵 y **AliExpress** 🌍 y compara opciones.")
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -212,11 +199,13 @@ with st.sidebar:
     )
 
     st.subheader("🌍 Países a buscar")
-    col_usa, col_jpn = st.columns(2)
+    col_usa, col_jpn, col_ali = st.columns(3)
     with col_usa:
         search_usa = st.checkbox("🇺🇸 USA", value=True)
     with col_jpn:
         search_japan = st.checkbox("🇯🇵 Japón", value=True)
+    with col_ali:
+        search_aliexpress = st.checkbox("🌍 AliExpress", value=False)
 
     st.subheader("📊 Resultados")
     max_results = st.slider("Resultados por país", 5, 30, 10)
@@ -237,26 +226,6 @@ with st.sidebar:
     st.subheader("🎛️ Filtros")
     only_prime = st.checkbox("Solo productos Prime", value=False)
     only_with_price = st.checkbox("Solo con precio visible", value=True)
-
-    st.subheader("💱 Conversión de moneda")
-    currency_choice = st.selectbox(
-        "Mostrar precio convertido a:",
-        options=[
-            "❌ Sin conversión",
-            "💵 USD (Dólar)",
-            "🇨🇴 COP (Peso colombiano)",
-        ],
-        index=1,
-        help="Convierte precios de otras monedas a la elegida",
-        label_visibility="collapsed",
-    )
-    show_converted = currency_choice != "❌ Sin conversión"
-    target_currency = "USD" if "USD" in currency_choice else "COP" if "COP" in currency_choice else None
-    show_original = st.checkbox(
-        "Mantener precio original visible",
-        value=True,
-        help="Muestra el precio original (USD/JPY) además del convertido",
-    )
 
     st.divider()
 
@@ -299,23 +268,29 @@ if not search_btn:
 
     with st.expander("ℹ️ ¿Cómo funciona? ¿Cuál método elegir?", expanded=True):
         st.markdown("""
-        ### 🆓 Método 1: Scraping directo (RECOMENDADO para empezar)
+        ### 🆓 Método 1: Scraping directo (RECOMENDADO para Amazon)
         - **Costo**: $0
         - **Límite**: Sin límite técnico (se aplica delay de 2-4s entre búsquedas)
         - **Caché**: Guarda resultados 24h en disco. Si buscas lo mismo, es instantáneo.
         - **Riesgo**: Amazon puede pedir CAPTCHA. Si pasa, espera 10-15 min.
         - **Realidad para tu uso (15-20/día)**: Funciona bien gracias al caché.
 
-        ### 🆓 Método 2: ScraperAPI (más confiable)
+        ### 🆓 Método 2: ScraperAPI (más confiable + AliExpress)
         - **Costo**: $0 (1000 requests/mes)
         - **Límite**: ~33 búsquedas/día gratis
         - **Ventaja**: Maneja anti-bot y CAPTCHA por ti
+        - **AliExpress**: Solo funciona con ScraperAPI (requiere renderizado JS)
         - **Setup**: Regístrate en [scraperapi.com](https://www.scraperapi.com/), copia key al `.env`
 
         ### 💰 Método 3: Rainforest API (el más confiable)
         - **Costo**: Plan pago desde $49/mes
         - **Límite**: 10,000+ requests/mes
         - **Ventaja**: Datos ultra confiables, sin bloqueos
+
+        ### 🌍 AliExpress
+        - **Requiere**: ScraperAPI activo (usa requests del plan gratuito)
+        - **Envío**: Internacional a Colombia
+        - **Ideal para**: Componentes chinos baratos (RAM, SSD, fuentes, coolers)
         """)
 
     with st.expander("🚀 Setup inicial (solo primera vez)", expanded=False):
@@ -343,8 +318,8 @@ if not search_query or not search_query.strip():
     st.warning("⚠️ Por favor escribe un producto para buscar.")
     st.stop()
 
-if not search_usa and not search_japan:
-    st.warning("⚠️ Selecciona al menos un país.")
+if not search_usa and not search_japan and not search_aliexpress:
+    st.warning("⚠️ Selecciona al menos un país/tienda.")
     st.stop()
 
 
@@ -377,9 +352,29 @@ if search_japan:
     try:
         results["🇯🇵 Amazon Japón"] = do_search("amazon.co.jp", "Amazon Japón")
     except CaptchaError as e:
-        errors["🇯🇸 Amazon Japón"] = str(e)
+        errors["🇯🇵 Amazon Japón"] = str(e)
     except Exception as e:
         errors["🇯🇵 Amazon Japón"] = f"Error: {e}"
+
+if search_aliexpress:
+    try:
+        ali_scraper = AliExpressScraper()
+        label = f"🔍 Buscando '{search_query}' en AliExpress..."
+        with st.spinner(label):
+            cached = ali_scraper.scraper._get_cache(
+                f"aliexpress:{search_query}", "aliexpress.com"
+            )
+            if cached is not None:
+                st.toast("⚡ Resultado de caché para AliExpress", icon="⚡")
+                results["🌍 AliExpress"] = cached[:max_results]
+            else:
+                results["🌍 AliExpress"] = ali_scraper.search(
+                    search_query, max_results=max_results
+                )
+    except CaptchaError as e:
+        errors["🌍 AliExpress"] = str(e)
+    except Exception as e:
+        errors["🌍 AliExpress"] = f"Error: {e}"
 
 
 # --- MOSTRAR ERRORES ---
@@ -399,20 +394,15 @@ if all_priced and len(results) > 1:
     st.markdown("---")
     st.subheader("🏆 Mejor oferta global")
 
-    # Moneda base para comparar: la seleccionada por el usuario, o USD por defecto
-    comparison_currency = target_currency or "USD"
-
-    def price_in_target(p: Product):
-        if p.currency == comparison_currency:
+    def price_in_cop(p: Product):
+        if p.currency == "COP":
             return p.price
-        converted = convert_currency(p.price, p.currency, comparison_currency)
+        converted = convert_currency(p.price, p.currency, "COP")
         return converted if converted is not None else float("inf")
 
-    best = min(all_priced, key=price_in_target)
+    best = min(all_priced, key=price_in_cop)
 
-    flag = "🇨🇴" if comparison_currency == "COP" else "💵"
-    price_target = price_in_target(best)
-    fmt = ",.0f" if comparison_currency == "COP" else ",.2f"
+    price_cop = price_in_cop(best)
 
     st.markdown('<div class="best-deal">', unsafe_allow_html=True)
     col1, col2 = st.columns([1, 4])
@@ -421,16 +411,17 @@ if all_priced and len(results) > 1:
             st.image(best.image, width=150)
     with col2:
         st.markdown(f"### {best.title[:150]}")
-        col_a, col_b, col_c = st.columns(3)
+        col_a, col_b, col_c, col_d = st.columns(4)
         col_a.metric(
             "Precio original",
             f"{best.currency} {best.price:,.2f}",
         )
         col_b.metric(
-            f"En {comparison_currency}",
-            f"{flag} {comparison_currency} {price_target:{fmt}}" if price_target != float("inf") else "—",
+            "En COP",
+            f"🇨🇴 COP {price_cop:,.0f}" if price_cop != float("inf") else "—",
         )
         col_c.metric("Rating", f"{best.rating}⭐" if best.rating else "N/A")
+        col_d.metric("Tienda", best.country)
         st.link_button("🛒 Ir al producto", best.url, type="primary")
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -458,16 +449,15 @@ for tab, (country, products) in zip(tabs, results.items()):
         col1.metric("Total encontrados", len(products))
         col2.metric("Después de filtros", len(filtered))
         if priced:
-            col3.metric("Precio mínimo", f"{priced[0].currency} {min(p.price for p in priced):,.2f}")
-            col4.metric(
-                "Precio promedio",
-                f"{priced[0].currency} {sum(p.price for p in priced) / len(priced):,.2f}",
-            )
+            min_price = min(p.price for p in priced)
+            avg_price = sum(p.price for p in priced) / len(priced)
+            col3.metric("Precio mínimo", f"{priced[0].currency} {min_price:,.2f}")
+            col4.metric("Precio promedio", f"{priced[0].currency} {avg_price:,.2f}")
 
         st.markdown("")
 
         for product in filtered:
-            render_product_card(product, show_converted, target_currency, show_original)
+            render_product_card(product)
 
 
 # --- FOOTER ---
