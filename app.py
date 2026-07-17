@@ -137,14 +137,19 @@ def render_product_card(product: Product):
 
     with cols[2]:
         if product.price is not None:
+            usd_price = product.price
+            if product.currency == "JPY":
+                converted_usd = convert_currency(product.price, "JPY", "USD")
+                if converted_usd:
+                    usd_price = converted_usd
+
             st.markdown(
-                f"<p class='price-tag'>{product.currency} {product.price:,.2f}</p>",
+                f"<p class='price-tag'>USD {usd_price:,.2f}</p>",
                 unsafe_allow_html=True,
             )
-            if product.currency != "COP":
-                converted = convert_currency(product.price, product.currency, "COP")
-                if converted:
-                    st.caption(f"🇨🇴 ≈ COP {converted:,.0f}")
+            cop_price = convert_currency(usd_price, "USD", "COP")
+            if cop_price:
+                st.caption(f"🇨🇴 ≈ COP {cop_price:,.0f}")
         else:
             st.caption("Precio no disponible")
 
@@ -167,18 +172,32 @@ def filter_and_sort(products: list[Product], sort_by: str, only_prime: bool, onl
     if only_with_price:
         filtered = [p for p in filtered if p.price is not None]
 
+    def price_to_usd(p):
+        if p.price is None:
+            return float("inf")
+        if p.currency == "USD":
+            return p.price
+        if p.currency == "JPY":
+            converted = convert_currency(p.price, "JPY", "USD")
+            return converted if converted is not None else float("inf")
+        if p.currency != "USD":
+            converted = convert_currency(p.price, p.currency, "USD")
+            return converted if converted is not None else float("inf")
+        return p.price
+
     if sort_by == "💰 Precio (menor a mayor)":
-        filtered.sort(key=lambda p: p.price if p.price is not None else float("inf"))
+        filtered.sort(key=price_to_usd)
     elif sort_by == "💰 Precio (mayor a menor)":
-        filtered.sort(key=lambda p: p.price if p.price is not None else 0, reverse=True)
+        filtered.sort(key=price_to_usd, reverse=True)
     elif sort_by == "⭐ Rating (mejor)":
         filtered.sort(key=lambda p: p.rating if p.rating is not None else 0, reverse=True)
     elif sort_by == "📝 Más reseñas":
         filtered.sort(key=lambda p: p.reviews_count or 0, reverse=True)
     elif sort_by == "🎯 Mejor valor (rating/precio)":
         def value_score(p):
-            if p.price and p.rating and p.reviews_count:
-                return (p.rating * (p.reviews_count ** 0.3)) / p.price
+            usd = price_to_usd(p)
+            if usd > 0 and p.rating and p.reviews_count:
+                return (p.rating * (p.reviews_count ** 0.3)) / usd
             return 0
         filtered.sort(key=value_score, reverse=True)
 
@@ -346,6 +365,8 @@ if all_priced and len(results) > 1:
     st.subheader("🏆 Mejor oferta global")
 
     def price_in_cop(p: Product):
+        if p.price is None:
+            return float("inf")
         if p.currency == "COP":
             return p.price
         converted = convert_currency(p.price, p.currency, "COP")
