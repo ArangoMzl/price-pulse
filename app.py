@@ -163,6 +163,18 @@ def render_product_card(product: Product):
     st.divider()
 
 
+def normalize_to_usd(p):
+    if p.price is None:
+        return None
+    if p.currency == "USD":
+        return p.price
+    if p.currency == "JPY":
+        converted = convert_currency(p.price, "JPY", "USD")
+        return converted if converted else p.price
+    converted = convert_currency(p.price, p.currency, "USD")
+    return converted if converted else p.price
+
+
 def filter_and_sort(products: list[Product], sort_by: str, only_prime: bool, only_with_price: bool):
     filtered = products
 
@@ -173,17 +185,8 @@ def filter_and_sort(products: list[Product], sort_by: str, only_prime: bool, onl
         filtered = [p for p in filtered if p.price is not None]
 
     def price_to_usd(p):
-        if p.price is None:
-            return float("inf")
-        if p.currency == "USD":
-            return p.price
-        if p.currency == "JPY":
-            converted = convert_currency(p.price, "JPY", "USD")
-            return converted if converted is not None else float("inf")
-        if p.currency != "USD":
-            converted = convert_currency(p.price, p.currency, "USD")
-            return converted if converted is not None else float("inf")
-        return p.price
+        val = normalize_to_usd(p)
+        return val if val is not None else float("inf")
 
     if sort_by == "💰 Precio (menor a mayor)":
         filtered.sort(key=price_to_usd)
@@ -384,7 +387,7 @@ if all_priced and len(results) > 1:
     with col2:
         st.markdown(f"### {best.title[:150]}")
         col_a, col_b, col_c, col_d = st.columns(4)
-        col_a.metric("Precio original", f"{best.currency} {best.price:,.2f}")
+        col_a.metric("Precio original", f"USD {normalize_to_usd(best):,.2f}" if normalize_to_usd(best) else "N/A")
         col_b.metric("En COP", f"🇨🇴 COP {price_cop:,.0f}" if price_cop != float("inf") else "—")
         col_c.metric("Rating", f"{best.rating}⭐" if best.rating else "N/A")
         col_d.metric("Tienda", best.country)
@@ -412,10 +415,12 @@ for tab, (country, products) in zip(tabs, results.items()):
         col1.metric("Total encontrados", len(products))
         col2.metric("Después de filtros", len(filtered))
         if priced:
-            min_price = min(p.price for p in priced)
-            avg_price = sum(p.price for p in priced) / len(priced)
-            col3.metric("Precio mínimo", f"{priced[0].currency} {min_price:,.2f}")
-            col4.metric("Precio promedio", f"{priced[0].currency} {avg_price:,.2f}")
+            usd_prices = [normalize_to_usd(p) for p in priced if normalize_to_usd(p) is not None]
+            if usd_prices:
+                min_price = min(usd_prices)
+                avg_price = sum(usd_prices) / len(usd_prices)
+                col3.metric("Precio mínimo", f"USD {min_price:,.2f}")
+                col4.metric("Precio promedio", f"USD {avg_price:,.2f}")
 
         st.markdown("")
 
