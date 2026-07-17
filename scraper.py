@@ -258,8 +258,10 @@ class AmazonScraper:
                     price_el = item.select_one(".a-price span")
                 if price_el:
                     price_text = price_el.get_text(strip=True)
-                    # Detectar moneda específica del texto (puede diferir entre items)
-                    item_currency = self._detect_currency_from_text(price_text, detected_currency)
+                    # Para amazon.co.jp: siempre usar detected_currency (USD)
+                    # No detectar por texto porque Amazon.co.jp muestra "¥" en el header
+                    if domain != "amazon.co.jp":
+                        item_currency = self._detect_currency_from_text(price_text, detected_currency)
                     price = self._parse_price(price_text, item_currency)
 
                 # Para amazon.co.jp: si el item_currency es USD, la moneda real es USD
@@ -330,30 +332,13 @@ class AmazonScraper:
     def _detect_page_currency(self, soup, default: str) -> str:
         """
         Detecta la moneda que Amazon está mostrando en TODA la página.
-        Amazon muestra precios en la moneda local según la IP/ubicación del usuario.
-        Ejemplo: amazon.com desde Colombia → COP.
-
-        Para amazon.co.jp, prioriza la moneda de los productos (no del header).
+        Para amazon.co.jp desde Colombia: siempre USD (Amazon muestra precios internacionales).
         """
-        # Para amazon.co.jp: revisar los precios de productos directamente
+        # Para amazon.co.jp: siempre USD (desde Colombia, Amazon muestra precios en USD)
         if default == "JPY":
-            product_prices = soup.select('[data-component-type="s-search-result"] .a-price .a-offscreen')[:5]
-            for price_el in product_prices:
-                text = price_el.get_text(strip=True)
-                if "$" in text and "¥" not in text:
-                    return "USD"
-                if "¥" in text or "￥" in text:
-                    return "JPY"
-            # También revisar símbolos dentro de resultados de búsqueda
-            product_symbols = soup.select('[data-component-type="s-search-result"] .a-price-symbol')[:5]
-            for sym in product_symbols:
-                text = sym.get_text(strip=True).upper()
-                if "$" in text:
-                    return "USD"
-                if "¥" in text or "￥" in text:
-                    return "JPY"
+            return "USD"
 
-        # Detección general: revisar los primeros símbolos de precio
+        # Detección general para amazon.com y otros
         symbols = soup.select(".a-price-symbol")[:5]
         for sym in symbols:
             text = sym.get_text(strip=True).upper()

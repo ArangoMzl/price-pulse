@@ -2,6 +2,8 @@
 Price Comparator - Amazon USA y Japon
 """
 import os
+import io
+import requests
 import streamlit as st
 
 from amazon_api import AmazonSearch, Product, convert_currency
@@ -23,6 +25,37 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 0.7; }
+        50% { transform: scale(1.05); opacity: 1; }
+        100% { transform: scale(1); opacity: 0.7; }
+    }
+    @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+    }
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+    .welcome-icon {
+        font-size: 4rem;
+        animation: float 3s ease-in-out infinite;
+        text-align: center;
+    }
+    .welcome-text {
+        text-align: center;
+        animation: pulse 2s ease-in-out infinite;
+    }
+    .shimmer-bg {
+        background: linear-gradient(90deg, #f0f2f6 25%, #e8eaf0 50%, #f0f2f6 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        padding: 2rem;
+        border-radius: 16px;
+        text-align: center;
+    }
     .best-deal {
         background: linear-gradient(90deg, #ffd700 0%, #ffec8b 100%);
         padding: 1.5rem;
@@ -52,17 +85,29 @@ st.markdown("""
 MAX_RESULTS = 5
 
 
+def safe_image(url: str, width: int = 130):
+    """Descarga y muestra una imagen de forma segura."""
+    if not url:
+        st.markdown("📦")
+        return
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        img_bytes = io.BytesIO(resp.content)
+        st.image(img_bytes, width=width, use_container_width=False)
+    except Exception:
+        st.markdown("📦")
+
+
 def render_product_card(product: Product):
     cols = st.columns([1, 4, 1.2])
 
     with cols[0]:
-        if product.image:
-            st.markdown(
-                f'<img src="{product.image}" width="130" style="border-radius:8px;">',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown("📦")
+        safe_image(product.image, width=130)
 
     with cols[1]:
         st.markdown(f"**{product.title[:120]}{'...' if len(product.title) > 120 else ''}**")
@@ -220,9 +265,22 @@ with st.sidebar:
 
 
 if not search_btn:
-    st.info(
-        "👈 Configura tu búsqueda en el panel lateral y presiona **Buscar**."
+    st.markdown('<div class="shimmer-bg">', unsafe_allow_html=True)
+    st.markdown('<div class="welcome-icon">🛒</div>', unsafe_allow_html=True)
+    st.markdown('<div class="welcome-text"><h3>Comparador de Precios Amazon</h3></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<p style="text-align:center; color:#666;">'
+        "Configura tu búsqueda en el panel lateral y presiona <b>Buscar</b>."
+        "</p>",
+        unsafe_allow_html=True,
     )
+    st.markdown(
+        '<p style="text-align:center; color:#888; font-size:0.9rem;">'
+        "USA 🇺🇸 · Japón 🇯🇵 · Precios en USD con conversión a COP 🇨🇴"
+        "</p>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 if not search_query or not search_query.strip():
@@ -293,11 +351,7 @@ if all_priced and len(results) > 1:
     st.markdown('<div class="best-deal">', unsafe_allow_html=True)
     col1, col2 = st.columns([1, 4])
     with col1:
-        if best.image:
-            st.markdown(
-                f'<img src="{best.image}" width="150" style="border-radius:8px;">',
-                unsafe_allow_html=True,
-            )
+        safe_image(best.image, width=150)
     with col2:
         st.markdown(f"### {best.title[:150]}")
         col_a, col_b, col_c, col_d = st.columns(4)
