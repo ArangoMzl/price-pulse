@@ -56,13 +56,6 @@ st.markdown("""
         border-radius: 16px;
         text-align: center;
     }
-    .best-deal {
-        background: linear-gradient(90deg, #ffd700 0%, #ffec8b 100%);
-        padding: 1.5rem;
-        border-radius: 12px;
-        border: 2px solid #ffa500;
-        margin-bottom: 1rem;
-    }
     .price-tag {
         font-size: 1.5rem;
         font-weight: bold;
@@ -348,7 +341,9 @@ if all_priced and len(results) > 1:
     best = min(all_priced, key=price_in_cop)
     price_cop = price_in_cop(best)
 
-    st.markdown('<div class="best-deal">', unsafe_allow_html=True)
+    st.markdown("---")
+    st.subheader("🏆 Mejor oferta global")
+
     col1, col2 = st.columns([1, 4])
     with col1:
         safe_image(best.image, width=150)
@@ -360,7 +355,6 @@ if all_priced and len(results) > 1:
         col_c.metric("Rating", f"{best.rating}⭐" if best.rating else "N/A")
         col_d.metric("Tienda", best.country)
         st.link_button("🛒 Ir al producto", best.url, type="primary")
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 st.markdown("---")
